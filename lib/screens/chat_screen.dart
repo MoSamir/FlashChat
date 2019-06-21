@@ -1,15 +1,19 @@
+import 'dart:math';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flash_chat/constants.dart';
 import 'package:flash_chat/utils/ChatCard.dart';
 import 'package:flutter/material.dart';
-import 'package:flash_chat/constants.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-
+import 'package:flutter_native_image/flutter_native_image.dart';
+import 'package:image_picker/image_picker.dart';
 
 class ChatScreen extends StatefulWidget {
 
 
   static const id = 'ChatScreen';
+
   @override
   _ChatScreenState createState() => _ChatScreenState();
 }
@@ -18,7 +22,10 @@ class _ChatScreenState extends State<ChatScreen> {
   final myController = TextEditingController();
   final _auth = FirebaseAuth.instance;
   FirebaseUser loggedInUser ;
+
+  final _firestorage = FirebaseStorage.instance;
   String userMessage ;
+
   final _store = Firestore.instance;
 
   getCurrentUser()async {
@@ -45,6 +52,7 @@ class _ChatScreenState extends State<ChatScreen> {
       print("Error Accured");
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -67,18 +75,18 @@ class _ChatScreenState extends State<ChatScreen> {
           child: StreamBuilder<QuerySnapshot>(
             stream: _store.collection('messages').snapshots(),
             builder: (context,snapShot){
-
               bool isMyMessage  = false ;
-
               if(snapShot.hasData) {
                 List<ChatCard> messagesList = [];
                 for(var message in snapShot.data.documents.reversed){
-                  String messageText = message['text'];
+                  String messageText = message['content'];
                   String messageSender = message['sender'];
+                  int messageType = message['type'];
 
                   isMyMessage = messageSender == loggedInUser.email;
                   messagesList.add(ChatCard(
                     email: messageSender,
+                    messageContentType: messageType,
                     message: messageText,
                     isFromMe: isMyMessage,
                   ));
@@ -89,8 +97,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
                     Expanded(
-                        flex: 5,
-                        child: ListView(
+                      flex: 5,
+                      child: ListView(
                         reverse: true,
                         children: messagesList,
                       ),
@@ -106,7 +114,22 @@ class _ChatScreenState extends State<ChatScreen> {
                               decoration: kMessageTextFieldDecoration,
                             ),
                           ),
+                          Container(
+                            width: 40,
+                            height: 40,
+                            child: Center(
+                              child: FlatButton(
+                                onPressed: () {
+                                  onImageCapture(context);
+                                },
+                                child: Center(child: Icon(
+                                  Icons.camera_alt, size: 20,
+                                  color: Colors.lightBlueAccent,)),
+                              ),
+                            ),
+                          ),
                           FlatButton(
+                            padding: EdgeInsets.all(0),
                             onPressed: (){onSendMessageClicked(context);},
                             child: Text(
                               'Send',
@@ -137,7 +160,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           ),
                           FlatButton(
                             onPressed: (){
-                            onSendMessageClicked(context);
+                              onSendMessageClicked(context);
                             },
                             child: Text(
                               'Send',
@@ -157,18 +180,14 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  void onSendMessageClicked(BuildContext myContext)async{
+  void onSendMessageClicked(BuildContext myContext) {
     if(myController.text.trim().length == 0 ){
       Scaffold.of(myContext).showSnackBar(SnackBar(content: Text('Cant Send Empty Message')));
       return ;
     }
-    String input = myController.text;
-    myController.clear();
 
-    final message = await _store.collection('messages').add({
-      'sender':loggedInUser.email,
-      'text' : input
-    });
+    pushMessage(myController.text, loggedInUser.email, 1);
+    myController.clear();
   }
 
   @override
@@ -176,5 +195,35 @@ class _ChatScreenState extends State<ChatScreen> {
     myController.dispose();
     // TODO: implement dispose
     super.dispose();
+  }
+
+  void pushMessage(String text, String email, int messageType) async {
+    final message = await _store.collection('messages').add({
+      'sender': email,
+      'content': text,
+      'type': messageType
+    });
+  }
+
+  void onImageCapture(BuildContext context) async {
+    var image = await ImagePicker.pickImage(source: ImageSource.camera);
+    if (image == null) return;
+
+    image = await FlutterNativeImage.compressImage(image.path,
+        quality: 50, percentage: 50);
+
+
+    //print( "image.path is ${image.path}" );
+
+    String imageName = loggedInUser.email + Random().nextInt(999).toString() +
+        ".jpg";
+
+    final StorageUploadTask uploadTask = _firestorage.ref().child(
+        "chatImages/$imageName").putFile(image);
+    final StorageTaskSnapshot downloadUrl = (await uploadTask.onComplete);
+    final String url = (await downloadUrl.ref.getDownloadURL());
+    print("URL IS $url");
+    await pushMessage(url, loggedInUser.email, 2);
+    print("Saving Success");
   }
 }

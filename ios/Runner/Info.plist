@@ -2,6 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+
+
+
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Flash-Chat ask your permission to access the Photo directory</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Flash-Chat ask your permission to access the Camera to capture Images</string>
+     <key>NSMicrophoneUsageDescription</key>
+     <string>Flash-Chat ask your permission to access the Microphone to capture sounds around</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
